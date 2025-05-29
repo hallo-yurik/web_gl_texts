@@ -25,33 +25,32 @@ class Camera {
     }
 
     getRay(ndcX, ndcY) {
-        const gl = this.context;
         const cam = this;
 
-        // Кліп-простір, точка на ближній площині (z = -1)
+        // Clip-coords, point on the closest plane (z = -1).
         const clipCoords = [ndcX, ndcY, -1, 1];
 
-        // Обротна проекційна матриця
+        // Inverted projection matrix.
         const invProj = mat4.invert(mat4.create(), cam.getProjectionMatrix());
 
-        // Точка у view-просторі
+        // Point in view-coords.
         let viewCoords = vec4.transformMat4(vec4.create(), clipCoords, invProj);
-        viewCoords = viewCoords.map(c => c / viewCoords[3]); // нормалізація
+        viewCoords = vec4.normalize(vec4.create(), viewCoords);
 
-        // Обротна view-матриця
+        // Inverted view-matrix.
         const invView = mat4.invert(mat4.create(), cam.getViewMatrix());
 
-        // Точка у світовому просторі
+        // Point in world space.
         let worldCoords = vec4.transformMat4(vec4.create(), viewCoords, invView);
-        worldCoords = worldCoords.slice(0, 3); // вектор3
+        worldCoords = worldCoords.slice(0, 3); // Vector 3.
 
-        // Камера у світі
+        // World camera.
         const camPos = cam.position;
 
-        // Напрямок променя (нормалізований)
+        // Ray direction (normalized).
         const dir = vec3.normalize(vec3.create(), vec3.subtract(vec3.create(), worldCoords, camPos));
 
-        return { origin: camPos, direction: dir };
+        return {origin: camPos, direction: dir};
     }
 }
 

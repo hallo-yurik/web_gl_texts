@@ -1,30 +1,44 @@
-import {createTextTexture} from "../utils";
 import {mat4, vec3, vec4} from "gl-matrix";
 
 class Plane {
+    wordPositions = [];
+
+    vertices = new Float32Array([
+        // x, y, z,   u, v
+        -1, -1, 0,    0, 0,
+        1, -1, 0,     1, 0,
+        -1, 1, 0,     0, 1,
+
+        1, -1, 0,     1, 0,
+        1, 1, 0,      1, 1,
+        -1, 1, 0,     0, 1
+    ]);
+
+    highlightedWordIndex = -1; // Index of the highlighted word (-1 — none).
+
+    lineHeight = 24;
+    fontSize = 20;
+
+    textureSize = [256, 256];
+
     constructor(gl, position = [0, 0, 0], rotation = [0, 0, 0]) {
         this.gl = gl;
         this.position = position;
         this.rotation = rotation; // [x, y, z]
 
-        this.vertices = new Float32Array([
-            // x, y, z,   u, v
-            -1, -1, 0, 0, 0,
-            1, -1, 0, 1, 0,
-            -1, 1, 0, 0, 1,
-
-            1, -1, 0, 1, 0,
-            1, 1, 0, 1, 1,
-            -1, 1, 0, 0, 1
-        ]);
-
-        this.texture = createTextTexture(gl, `
+        const text = `
         Lorem ipsum dolor sit amet,
         consectetur adipiscing elit,
         sed do eiusmod tempor incididunt ut
         labore et dolore magna aliqua. Ut enim ad minim veniam,
         quis nostrud exercitation ullamco
-        `);
+        `;
+
+        this.text = text.trim().replace(/\n/g, " ");
+        this.words = this.text.split(/\s+/);
+
+        // First texture without highlighting.
+        this.texture = this.createTexture();
 
         this.buffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
@@ -49,7 +63,6 @@ class Plane {
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.uniform1i(gl.getUniformLocation(program, "uTexture"), 0);
 
-        // 🔥 Додай цей рядок — малювання 6 вершин (2 трикутники)
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 
@@ -61,13 +74,13 @@ class Plane {
         const sy = Math.sin(ry), cy = Math.cos(ry);
         const sz = Math.sin(rz), cz = Math.cos(rz);
 
-        // Обертання навколо X, потім Y, потім Z, разом з позицією
+        // Rotation around X, then Y, then Z, along with position.
         // R = Rz * Ry * Rx
         const modelMatrix = new Float32Array([
-            cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx, 0,
-            sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx, 0,
-            -sy, cy * sx, cy * cx, 0,
-            x, y, z, 1,
+            cz * cy,     cz * sy * sx - sz * cx,     cz * sy * cx + sz * sx,      0,
+            sz * cy,     sz * sy * sx + cz * cx,     sz * sy * cx - cz * sx,      0,
+            -sy,         cy * sx,                    cy * cx,                     0,
+            x,           y,                          z,                           1,
         ]);
 
         return modelMatrix;
@@ -76,13 +89,13 @@ class Plane {
     intersectRay(ray) {
         const modelMatrix = this.getModelMatrix();
 
-        // Отримаємо позицію плейна у світі (остання колонка матриці)
+        // Get position of the plane in the world (last row of the matrix).
         const planePos = vec3.fromValues(modelMatrix[12], modelMatrix[13], modelMatrix[14]);
 
-        // Локальна нормаль плейна (0, 0, 1)
+        // Local normal of the plane (0, 0, 1).
         const localNormal = vec3.fromValues(0, 0, 1);
 
-        // Трансформуємо нормаль нормалізованим способом (без трансляції)
+        // Transform the normal in a normalized way (without translation).
         const normalMatrix = mat4.create();
         mat4.invert(normalMatrix, modelMatrix);
         mat4.transpose(normalMatrix, normalMatrix);
@@ -92,7 +105,7 @@ class Plane {
 
         const denom = vec3.dot(ray.direction, worldNormal);
         if (Math.abs(denom) < 1e-6) {
-            // Промінь паралельний площині
+            // Ray parallel to the plane.
             return null;
         }
 
@@ -102,15 +115,15 @@ class Plane {
         const t = vec3.dot(diff, worldNormal) / denom;
 
         if (t < 0) {
-            // Перетину нема, площина "позаду" променя
+            // There is no intersection, the plane is "behind" the ray.
             return null;
         }
 
-        // Точка перетину в світових координатах
+        // Intersection point in world coordinates.
         const hitPoint = vec3.create();
         vec3.scaleAndAdd(hitPoint, ray.origin, ray.direction, t);
 
-        // Переводимо hitPoint у локальні координати площини
+        // Convert hitPoint to local plane coordinates.
         const invModel = mat4.create();
         mat4.invert(invModel, modelMatrix);
 
@@ -120,8 +133,10 @@ class Plane {
         const hitPointLocal = [hitPointLocal4[0], hitPointLocal4[1], hitPointLocal4[2]];
 
         const hitPointUv = [(hitPointLocal4[0] + 1) / 2, (hitPointLocal4[1] + 1) / 2];
+        const uvPointNominal = [hitPointUv[0] * this.textureSize[0], hitPointUv[1] * this.textureSize[1]];
 
-        // Перевірка, чи точка у межах квадрата (-1..1 по X і Y), Z приблизно 0
+        // Checking if a point is within a square (-1..1 in X and Y), Z approximately 0.
+        // Note: Should be different depending on plane size.
         if (
             hitPointLocal[0] >= -1 && hitPointLocal[0] <= 1 &&
             hitPointLocal[1] >= -1 && hitPointLocal[1] <= 1 &&
@@ -129,13 +144,86 @@ class Plane {
         ) {
             return {
                 point: hitPoint,
-                localPoint: hitPointLocal,
-                uv: hitPointUv,
-                distance: t
+                // localPoint: hitPointLocal,
+                // uv: hitPointUv,
+                // distance: t,
+                uvNominal: uvPointNominal
             };
         }
 
         return null;
+    }
+
+    createTexture() {
+        const gl = this.gl;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = this.textureSize[0];
+        canvas.height = this.textureSize[1];
+
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.font = `bold ${this.fontSize}px Arial`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+
+        let x = 10;
+        let y = 10;
+
+        const spaceMetrics = ctx.measureText(" ");
+        const spaceWidth = spaceMetrics.width;
+        const maxWidth = canvas.width - 20;
+
+        for (let i = 0; i < this.words.length; i++) {
+            const word = this.words[i];
+
+            const textMetrics = ctx.measureText(word);
+
+            const wordWidth = textMetrics.actualBoundingBoxRight + textMetrics.actualBoundingBoxLeft;
+            const wordHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+
+            // Line break check.
+            if (x + wordWidth > maxWidth) {
+                x = 10;
+                y += this.lineHeight;
+            }
+
+            // If this word is highlighted, draw it red, otherwise draw it black.
+            ctx.fillStyle = (i === this.highlightedWordIndex) ? "red" : "black";
+            ctx.fillText(word, x, y);
+
+            this.wordPositions.push({x, y, width: wordWidth, height: wordHeight, word});
+
+            x += wordWidth + spaceWidth;
+        }
+
+        // Creating a WebGL texture.
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        return texture;
+    }
+
+    highlightWord(index) {
+        if (index === this.highlightedWordIndex) return; // Unchanged.
+
+        this.highlightedWordIndex = index;
+
+        // Deleting the old texture if necessary.
+        if (this.texture) {
+            this.gl.deleteTexture(this.texture);
+        }
+
+        this.texture = this.createTexture();
     }
 }
 

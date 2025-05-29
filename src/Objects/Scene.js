@@ -1,7 +1,7 @@
-import { createShader } from "../utils";
+import {createShader} from "../utils";
 import Camera from "./Camera";
 import Plane from "./Plane";
-import {mat4, vec3, vec4} from "gl-matrix";
+import {vec3} from "gl-matrix";
 
 const vertexShaderSource = `
     attribute vec3 position;
@@ -30,6 +30,9 @@ const fragmentShaderSource = `
 `;
 
 class Scene {
+    fov = Math.PI / 4;
+    planesAmount = 20;
+
     constructor() {
         this.canvas = document.getElementById("canvas");
         this.context = this.canvas.getContext("webgl");
@@ -42,24 +45,70 @@ class Scene {
 
         this.init();
 
-        this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
+        this.canvas.addEventListener("mousemove", this.onMouseMove.bind(this));
     }
 
     onMouseMove(event) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = ((event.clientX - rect.left) / rect.width) * 2 - 1; // від -1 до 1
-        const y = -(((event.clientY - rect.top) / rect.height) * 2 - 1); // від -1 до 1 (інвертовано Y)
+        const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        const y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
 
         const ray = this.camera.getRay(x, y);
 
-        // тепер можна перевіряти перетин ray з площинами
-        this.planes.forEach(plane => {
-            // console.log(123);
-            if (plane.intersectRay(ray)) {
-                console.log(plane.intersectRay(ray));
-                // робимо підсвітку, змінюємо колір слова і т.д.
+        let anyHovered = false;
+
+        const highlightedWords = [];
+
+        for (let j = 0; j < this.planes.length; j++) {
+            const plane = this.planes[j];
+
+            const result = plane.intersectRay(ray);
+
+            if (result) {
+                const uv = result.uvNominal;
+
+                const wordPositions = plane.wordPositions;
+                let found = false;
+
+                for (let i = 0; i < wordPositions.length; i++) {
+                    const word = wordPositions[i];
+
+                    if (
+                        uv[0] >= word.x &&
+                        uv[0] <= word.x + word.width &&
+                        uv[1] >= word.y &&
+                        uv[1] <= word.y + word.height
+                    ) {
+                        // plane.highlightWord(i);
+                        found = true;
+                        anyHovered = true;
+
+                        highlightedWords.push({plane, wordIndex: i, point: result.point});
+
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    plane.highlightWord(-1);
+                }
+            } else {
+                plane.highlightWord(-1);
             }
-        });
+        }
+
+        if (highlightedWords.length > 0) {
+            highlightedWords.sort((a, b) => vec3.distance(vec3.create(), a.point) - vec3.distance(vec3.create(), b.point));
+
+            const closestWord = highlightedWords[0];
+
+            closestWord.plane.highlightWord(closestWord.wordIndex);
+
+            for (let i = 1; i < highlightedWords.length; i++) {
+                const otherWord = highlightedWords[i];
+                otherWord.plane.highlightWord(-1);
+            }
+        }
 
         this.render();
     }
@@ -82,17 +131,17 @@ class Scene {
 
         gl.useProgram(this.program);
 
-        this.camera = new Camera(Math.PI / 4, this.canvas.width / this.canvas.height, 0.1, 100);
+        this.camera = new Camera(this.fov, this.canvas.width / this.canvas.height, 0.1, 100);
 
         this.planes = [];
 
-        const depth = -6;
-        const fov = Math.PI / 4;
         const aspect = this.canvas.width / this.canvas.height;
-        const halfHeight = Math.tan(fov / 2) * Math.abs(depth);
-        const halfWidth = halfHeight * aspect;
 
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < this.planesAmount; i++) {
+            const depth = -6 + Math.random() * -10;
+            const halfHeight = Math.tan(this.fov / 2) * Math.abs(depth);
+            const halfWidth = halfHeight * aspect;
+
             const x = (Math.random() * 2 - 1) * (halfWidth - 1);
             const y = (Math.random() * 2 - 1) * (halfHeight - 1);
             const z = depth;
