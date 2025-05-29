@@ -1,4 +1,5 @@
 import {createTextTexture} from "../utils";
+import {mat4, vec3, vec4} from "gl-matrix";
 
 class Plane {
     constructor(gl, position = [0, 0, 0], rotation = [0, 0, 0]) {
@@ -70,6 +71,68 @@ class Plane {
         ]);
 
         return modelMatrix;
+    }
+
+    intersectRay(ray) {
+        const modelMatrix = this.getModelMatrix();
+
+        // Отримаємо позицію плейна у світі (остання колонка матриці)
+        const planePos = vec3.fromValues(modelMatrix[12], modelMatrix[13], modelMatrix[14]);
+
+        // Локальна нормаль плейна (0, 0, 1)
+        const localNormal = vec3.fromValues(0, 0, 1);
+
+        // Трансформуємо нормаль нормалізованим способом (без трансляції)
+        const normalMatrix = mat4.create();
+        mat4.invert(normalMatrix, modelMatrix);
+        mat4.transpose(normalMatrix, normalMatrix);
+        let worldNormal = vec3.create();
+        vec3.transformMat4(worldNormal, localNormal, normalMatrix);
+        vec3.normalize(worldNormal, worldNormal);
+
+        const denom = vec3.dot(ray.direction, worldNormal);
+        if (Math.abs(denom) < 1e-6) {
+            // Промінь паралельний площині
+            return null;
+        }
+
+        const diff = vec3.create();
+        vec3.subtract(diff, planePos, ray.origin);
+
+        const t = vec3.dot(diff, worldNormal) / denom;
+
+        if (t < 0) {
+            // Перетину нема, площина "позаду" променя
+            return null;
+        }
+
+        // Точка перетину в світових координатах
+        const hitPoint = vec3.create();
+        vec3.scaleAndAdd(hitPoint, ray.origin, ray.direction, t);
+
+        // Переводимо hitPoint у локальні координати площини
+        const invModel = mat4.create();
+        mat4.invert(invModel, modelMatrix);
+
+        const hitPointLocal4 = vec4.fromValues(hitPoint[0], hitPoint[1], hitPoint[2], 1);
+        vec4.transformMat4(hitPointLocal4, hitPointLocal4, invModel);
+
+        const hitPointLocal = [hitPointLocal4[0], hitPointLocal4[1], hitPointLocal4[2]];
+
+        // Перевірка, чи точка у межах квадрата (-1..1 по X і Y), Z приблизно 0
+        if (
+            hitPointLocal[0] >= -1 && hitPointLocal[0] <= 1 &&
+            hitPointLocal[1] >= -1 && hitPointLocal[1] <= 1 &&
+            Math.abs(hitPointLocal[2]) < 0.01
+        ) {
+            return {
+                point: hitPoint,
+                localPoint: hitPointLocal,
+                distance: t
+            };
+        }
+
+        return null;
     }
 }
 
