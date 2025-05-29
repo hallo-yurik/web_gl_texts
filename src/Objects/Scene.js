@@ -1,6 +1,7 @@
 import { createShader } from "../utils";
 import Camera from "./Camera";
 import Plane from "./Plane";
+import {mat4, vec4} from "gl-matrix";
 
 const vertexShaderSource = `
     attribute vec3 position;
@@ -40,6 +41,50 @@ class Scene {
         this.context.viewport(0, 0, this.canvas.width, this.canvas.height);
 
         this.init();
+
+        this.canvas.addEventListener("mousemove", (event) => {
+            // координати миші відносно верхнього лівого кута канваса
+            const rect = this.canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            // перетворюємо у нормалізовані координати (-1 до 1)
+            const ndcX = (x / this.canvas.width) * 2 - 1;
+            const ndcY = -((y / this.canvas.height) * 2 - 1);
+
+            this.getRay(ndcX, ndcY);
+            console.log("Mouse NDC coords:", ndcX, ndcY);
+        });
+    }
+
+    getRay(ndcX, ndcY) {
+        const gl = this.context;
+        const cam = this.camera;
+
+        // Кліп-простір, точка на ближній площині (z = -1)
+        const clipCoords = [ndcX, ndcY, -1, 1];
+
+        // Обротна проекційна матриця
+        const invProj = mat4.invert(mat4.create(), cam.getProjectionMatrix());
+
+        // Точка у view-просторі
+        let viewCoords = vec4.transformMat4(vec4.create(), clipCoords, invProj);
+        viewCoords = viewCoords.map(c => c / viewCoords[3]); // нормалізація
+
+        // Обротна view-матриця
+        const invView = mat4.invert(mat4.create(), cam.getViewMatrix());
+
+        // Точка у світовому просторі
+        let worldCoords = vec4.transformMat4(vec4.create(), viewCoords, invView);
+        worldCoords = worldCoords.slice(0, 3); // вектор3
+
+        // Камера у світі
+        const camPos = cam.position;
+
+        // Напрямок променя (нормалізований)
+        const dir = vec3.normalize(vec3.create(), vec3.subtract(vec3.create(), worldCoords, camPos));
+
+        return { origin: camPos, direction: dir };
     }
 
     init() {
