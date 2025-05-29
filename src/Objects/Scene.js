@@ -56,7 +56,7 @@ class Scene {
         this.planes.forEach(plane => {
             // console.log(123);
             if (plane.intersectRay(ray)) {
-                console.log(123);
+                console.log(plane.intersectRay(ray));
                 // робимо підсвітку, змінюємо колір слова і т.д.
             }
         });

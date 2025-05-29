@@ -9,13 +9,13 @@ class Plane {
 
         this.vertices = new Float32Array([
             // x, y, z,   u, v
-            -1, -1, 0,   0, 0,
-            1, -1, 0,   1, 0,
-            -1,  1, 0,   0, 1,
+            -1, -1, 0, 0, 0,
+            1, -1, 0, 1, 0,
+            -1, 1, 0, 0, 1,
 
-            1, -1, 0,   1, 0,
-            1,  1, 0,   1, 1,
-            -1,  1, 0,   0, 1
+            1, -1, 0, 1, 0,
+            1, 1, 0, 1, 1,
+            -1, 1, 0, 0, 1
         ]);
 
         this.texture = createTextTexture(gl, `
@@ -64,10 +64,10 @@ class Plane {
         // Обертання навколо X, потім Y, потім Z, разом з позицією
         // R = Rz * Ry * Rx
         const modelMatrix = new Float32Array([
-            cz * cy,                 cz * sy * sx - sz * cx,   cz * sy * cx + sz * sx,   0,
-            sz * cy,                 sz * sy * sx + cz * cx,   sz * sy * cx - cz * sx,   0,
-            -sy,                     cy * sx,                  cy * cx,                  0,
-            x,                       y,                        z,                        1,
+            cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx, 0,
+            sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx, 0,
+            -sy, cy * sx, cy * cx, 0,
+            x, y, z, 1,
         ]);
 
         return modelMatrix;
@@ -119,6 +119,8 @@ class Plane {
 
         const hitPointLocal = [hitPointLocal4[0], hitPointLocal4[1], hitPointLocal4[2]];
 
+        const hitPointUv = [(hitPointLocal4[0] + 1) / 2, (hitPointLocal4[1] + 1) / 2];
+
         // Перевірка, чи точка у межах квадрата (-1..1 по X і Y), Z приблизно 0
         if (
             hitPointLocal[0] >= -1 && hitPointLocal[0] <= 1 &&
@@ -128,6 +130,7 @@ class Plane {
             return {
                 point: hitPoint,
                 localPoint: hitPointLocal,
+                uv: hitPointUv,
                 distance: t
             };
         }
