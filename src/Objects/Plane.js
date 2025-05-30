@@ -3,17 +3,6 @@ import {mat4, vec3, vec4} from "gl-matrix";
 class Plane {
     wordPositions = [];
 
-    vertices = new Float32Array([
-        // x, y, z,   u, v
-        -1, -1, 0, 0, 0,
-        1, -1, 0, 1, 0,
-        -1, 1, 0, 0, 1,
-
-        1, -1, 0, 1, 0,
-        1, 1, 0, 1, 1,
-        -1, 1, 0, 0, 1
-    ]);
-
     highlightedWordIndex = -1; // Index of the highlighted word (-1 — none).
 
     lineHeight = 24;
@@ -21,15 +10,27 @@ class Plane {
 
     textureSize = [256, 256];
 
-    // finalTextureSize = [0, 0]
-
     constructor(gl, text, position = [0, 0, 0], rotation = [0, 0, 0]) {
         this.gl = gl;
         this.position = position;
         this.rotation = rotation; // [x, y, z]
+        this.scale = [1, 1, 1]
+
+        this.vertices = new Float32Array([
+            // x, y, z,   u, v
+            -1, -1, 0, 0, 0,
+            1, -1, 0, 1, 0,
+            -1, 1, 0, 0, 1,
+
+            1, -1, 0, 1, 0,
+            1, 1, 0, 1, 1,
+            -1, 1, 0, 0, 1
+        ]);
 
         this.text = text.trim().replace(/\n/g, " ");
         this.words = this.text.split(/\s+/);
+        this.canvasHeight = this.getCanvasHeight();
+        this.scaleY = this.canvasHeight / this.textureSize[1]; // normalization to [1];
 
         // First texture without highlighting.
         this.texture = this.createTexture();
@@ -70,14 +71,24 @@ class Plane {
 
         // Rotation around X, then Y, then Z, along with position.
         // R = Rz * Ry * Rx
+        const scaleY = this.scaleY ?? 1;
+
         const modelMatrix = new Float32Array([
-            cz * cy,/* */cz * sy * sx - sz * cx,/* */cz * sy * cx + sz * sx,/* */0,
-            sz * cy,/* */sz * sy * sx + cz * cx,/* */sz * sy * cx - cz * sx,/* */0,
-            -sy,/*     */cy * sx,/*                */cy * cx,/*                */0,
-            x,/*       */y,/*                      */z,/*                      */1,
+            cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx, 0,
+            sz * cy * scaleY, (sz * sy * sx + cz * cx) * scaleY, (sz * sy * cx - cz * sx) * scaleY, 0,
+            -sy, cy * sx, cy * cx, 0,
+            x, y, z, 1,
         ]);
 
-        return modelMatrix;
+        // Adding scale as separate matrix;
+        const scaleMatrix = mat4.create();
+        mat4.scale(scaleMatrix, scaleMatrix, this.scale);
+
+        // Merge scale with modelMatrix.
+        const finalMatrix = mat4.create();
+        mat4.multiply(finalMatrix, modelMatrix, scaleMatrix);
+
+        return finalMatrix;
     }
 
     intersectRay(ray) {
@@ -127,13 +138,16 @@ class Plane {
         const hitPointLocal = [hitPointLocal4[0], hitPointLocal4[1], hitPointLocal4[2]];
 
         const hitPointUv = [(hitPointLocal4[0] + 1) / 2, (hitPointLocal4[1] + 1) / 2];
-        const uvPointNominal = [hitPointUv[0] * this.textureSize[0], hitPointUv[1] * this.textureSize[1]];
 
-        // Checking if a point is within a square (-1..1 in X and Y), Z approximately 0.
-        // Note: Should be different depending on plane size.
+        const canvasHeight = this.getCanvasHeight();
+        const uvPointNominal = [hitPointUv[0] * this.textureSize[0], hitPointUv[1] * canvasHeight];
+
+        const height = this.scale[1];
+
+        // Checking if a point is within a square (-1<>1 in X and -height<>height in Y), Z approximately 0.
         if (
             hitPointLocal[0] >= -1 && hitPointLocal[0] <= 1 &&
-            hitPointLocal[1] >= -1 && hitPointLocal[1] <= 1 &&
+            hitPointLocal[1] >= -height && hitPointLocal[1] <= height &&
             Math.abs(hitPointLocal[2]) < 0.01
         ) {
             return {
@@ -153,8 +167,8 @@ class Plane {
 
         const canvas = document.createElement("canvas");
         canvas.width = this.textureSize[0];
-        canvas.height = this.textureSize[1];
-        // canvas.height = this.getCanvasHeight();
+        // canvas.height = this.textureSize[1];
+        canvas.height = this.canvasHeight;
 
         const ctx = canvas.getContext("2d");
 
