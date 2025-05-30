@@ -5,13 +5,13 @@ class Plane {
 
     vertices = new Float32Array([
         // x, y, z,   u, v
-        -1, -1, 0,    0, 0,
-        1, -1, 0,     1, 0,
-        -1, 1, 0,     0, 1,
+        -1, -1, 0, 0, 0,
+        1, -1, 0, 1, 0,
+        -1, 1, 0, 0, 1,
 
-        1, -1, 0,     1, 0,
-        1, 1, 0,      1, 1,
-        -1, 1, 0,     0, 1
+        1, -1, 0, 1, 0,
+        1, 1, 0, 1, 1,
+        -1, 1, 0, 0, 1
     ]);
 
     highlightedWordIndex = -1; // Index of the highlighted word (-1 — none).
@@ -20,7 +20,8 @@ class Plane {
     fontSize = 20;
 
     textureSize = [256, 256];
-    finalTextureSize = [0, 0]
+
+    // finalTextureSize = [0, 0]
 
     constructor(gl, text, position = [0, 0, 0], rotation = [0, 0, 0]) {
         this.gl = gl;
@@ -70,10 +71,10 @@ class Plane {
         // Rotation around X, then Y, then Z, along with position.
         // R = Rz * Ry * Rx
         const modelMatrix = new Float32Array([
-            cz * cy,     cz * sy * sx - sz * cx,     cz * sy * cx + sz * sx,      0,
-            sz * cy,     sz * sy * sx + cz * cx,     sz * sy * cx - cz * sx,      0,
-            -sy,         cy * sx,                    cy * cx,                     0,
-            x,           y,                          z,                           1,
+            cz * cy,/* */cz * sy * sx - sz * cx,/* */cz * sy * cx + sz * sx,/* */0,
+            sz * cy,/* */sz * sy * sx + cz * cx,/* */sz * sy * cx - cz * sx,/* */0,
+            -sy,/*     */cy * sx,/*                */cy * cx,/*                */0,
+            x,/*       */y,/*                      */z,/*                      */1,
         ]);
 
         return modelMatrix;
@@ -152,8 +153,8 @@ class Plane {
 
         const canvas = document.createElement("canvas");
         canvas.width = this.textureSize[0];
-        // canvas.height = this.textureSize[1];
-        canvas.height = this.getCanvasHeight();
+        canvas.height = this.textureSize[1];
+        // canvas.height = this.getCanvasHeight();
 
         const ctx = canvas.getContext("2d");
 
