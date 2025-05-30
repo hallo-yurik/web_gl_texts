@@ -20,19 +20,12 @@ class Plane {
     fontSize = 20;
 
     textureSize = [256, 256];
+    finalTextureSize = [0, 0]
 
-    constructor(gl, position = [0, 0, 0], rotation = [0, 0, 0]) {
+    constructor(gl, text, position = [0, 0, 0], rotation = [0, 0, 0]) {
         this.gl = gl;
         this.position = position;
         this.rotation = rotation; // [x, y, z]
-
-        const text = `
-        Lorem ipsum dolor sit amet,
-        consectetur adipiscing elit,
-        sed do eiusmod tempor incididunt ut
-        labore et dolore magna aliqua. Ut enim ad minim veniam,
-        quis nostrud exercitation ullamco
-        `;
 
         this.text = text.trim().replace(/\n/g, " ");
         this.words = this.text.split(/\s+/);
@@ -159,7 +152,8 @@ class Plane {
 
         const canvas = document.createElement("canvas");
         canvas.width = this.textureSize[0];
-        canvas.height = this.textureSize[1];
+        // canvas.height = this.textureSize[1];
+        canvas.height = this.getCanvasHeight();
 
         const ctx = canvas.getContext("2d");
 
@@ -211,6 +205,43 @@ class Plane {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
         return texture;
+    }
+
+    getCanvasHeight() {
+        const canvas = document.createElement("canvas");
+        canvas.width = this.textureSize[0];
+        canvas.height = this.textureSize[1];
+
+        const ctx = canvas.getContext("2d");
+
+        ctx.font = `bold ${this.fontSize}px Arial`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+
+        let x = 10;
+        let y = 10;
+
+        const spaceMetrics = ctx.measureText(" ");
+        const spaceWidth = spaceMetrics.width;
+        const maxWidth = canvas.width - 20;
+
+        for (let i = 0; i < this.words.length; i++) {
+            const word = this.words[i];
+
+            const textMetrics = ctx.measureText(word);
+
+            const wordWidth = textMetrics.actualBoundingBoxRight + textMetrics.actualBoundingBoxLeft;
+
+            // Line break check.
+            if (x + wordWidth > maxWidth) {
+                x = 10;
+                y += this.lineHeight;
+            }
+
+            x += wordWidth + spaceWidth;
+        }
+
+        return y + this.lineHeight + 10;
     }
 
     highlightWord(index) {

@@ -2,6 +2,7 @@ import {createShader} from "../utils";
 import Camera from "./Camera";
 import Plane from "./Plane";
 import {vec3} from "gl-matrix";
+import {stopLoadingInterval} from "../index";
 
 const vertexShaderSource = `
     attribute vec3 position;
@@ -113,7 +114,7 @@ class Scene {
         this.render();
     }
 
-    init() {
+    async init() {
         const gl = this.context;
 
         const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
@@ -137,6 +138,24 @@ class Scene {
 
         const aspect = this.canvas.width / this.canvas.height;
 
+        // Get joke as text.
+        // const requests = new Array(this.planesAmount)
+        //     .fill(
+        //         fetch("https://icanhazdadjoke.com/", {
+        //             headers: {
+        //                 "Accept": "text/plain",
+        //             }
+        //         })
+        //             .then(response => response.text())
+        //     );
+        //
+        // const jokes = await Promise.all(requests);
+
+        // console.log(jokes);
+
+        this.uProjectionLoc = gl.getUniformLocation(this.program, "uProjection");
+        this.uModelViewLoc = gl.getUniformLocation(this.program, "uModelView");
+
         for (let i = 0; i < this.planesAmount; i++) {
             const depth = -6 + Math.random() * -10;
             const halfHeight = Math.tan(this.fov / 2) * Math.abs(depth);
@@ -150,11 +169,19 @@ class Scene {
             const ry = Math.random() * Math.PI * 2;
             const rz = Math.random() * Math.PI * 2;
 
-            this.planes.push(new Plane(gl, [x, y, z], [rx, ry, rz]));
+            const joke = await fetch("https://icanhazdadjoke.com/", {
+                headers: {
+                    "Accept": "text/plain",
+                }
+            })
+                .then(response => response.text());
+
+            this.planes.push(new Plane(gl, joke, [x, y, z], [rx, ry, rz]));
+
+            this.render();
         }
 
-        this.uProjectionLoc = gl.getUniformLocation(this.program, "uProjection");
-        this.uModelViewLoc = gl.getUniformLocation(this.program, "uModelView");
+        stopLoadingInterval();
 
         this.render();
     }

@@ -6,12 +6,23 @@ window.onload = () => {
     scene = new Scene();
 };
 
+const loadingElement = document.getElementById("loading");
+const loadingTextBase = loadingElement.innerText;
+let dotsAmount = 0;
+
+const loadingInterval = setInterval(() => {
+    dotsAmount++;
+    dotsAmount %= 4;
+
+    loadingElement.innerText = `${loadingTextBase}${".".repeat(dotsAmount)}`;
+}, 200);
+
+export const stopLoadingInterval = () => {
+    loadingElement.style.display = "none";
+    clearInterval(loadingInterval);
+};
+
 window.addEventListener("resize", onWindowResize, false);
 
 function onWindowResize() {
-    // if (scene) {
-    //     scene.canvas.width = window.innerWidth;
-    //     scene.canvas.height = window.innerHeight;
-    //     scene.context.viewport(0, 0, scene.canvas.width, scene.canvas.height);
-    // }
 }
